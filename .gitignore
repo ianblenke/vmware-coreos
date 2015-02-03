@@ -1,2 +1,4 @@
 coreos_production_vmware_insecure*
 coreos_production_openstack_image.img
+prepare
+snapshot

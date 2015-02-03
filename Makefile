@@ -1,11 +1,12 @@
 VMRUN:="/Applications/VMware Fusion.app/Contents/Library/vmrun"
+VDISKMANAGER:="/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager"
 COREOS:=coreos_production_vmware_insecure
 PLATFORM:=fusion
 
 usage:
 	@echo 'make {list:start|stop|reboot|snapshot|revert|clean}'
 
-$(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso
+$(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	perl -pi -e 's/^memsize.*$$/memsize = "4096"/' $@
 	if ! grep ide1:0 $@ ; then \
 	  echo 'ide1:0.present = "TRUE"' >> $@ ; \
@@ -16,6 +17,10 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.present "TRUE"  2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.filename "configdrive.iso" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.deviceType "cdrom-image" 2>&1 >/dev/null || true
+
+prepare:
+	$(VDISKMANAGER) -x 10G $(COREOS)/$(COREOS)_image.vmdk
+	touch $@
 
 $(COREOS): $(COREOS).zip
 	unzip $< -d $@
@@ -47,8 +52,15 @@ revert rollback: $(COREOS)/$(COREOS).vmx
 
 clean:
 	make stop > /dev/null 2>&1 || true
-	rm -fr $(COREOS)
+	rm -fr $(COREOS) prepare
 
 distclean: clean
 	rm -fr $(COREOS).zip
+
+ps:
+	which docker || brew install docker 
+
+myrawdns:
+	docker build -t myrawdns rawdns/
+	docker run --rm --name myrawdns -p 172.17.42.1:2:53/tcp -p 172.17.42.1:53:53/udp -v /var/run/docker.sock:/var/run/docker.sock myrawdns rawdns /etc/rawdns.json
 

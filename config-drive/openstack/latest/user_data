@@ -12,15 +12,19 @@ coreos:
   units:
     - name: etcd.service
       command: start
+      enable: true
     - name: fleet.socket
       command: start
+      enable: true
       content: |
         [Socket]
         ListenStream=/var/run/fleet.sock
     - name: fleet.service
       command: start
+      enable: true
     - name: etcd-waiter.service
       command: start
+      enable: true
       content: |
         [Unit]
         Description=etcd waiter
@@ -35,9 +39,12 @@ coreos:
         ExecStart=/usr/bin/bash /opt/bin/waiter.sh
         RemainAfterExit=true
         Type=oneshot
+    - name: docker.service
+      command: start
+      enable: true
     - name: docker-tcp.socket
       command: start
-      enable: yes
+      enable: true
       content: |
         [Unit]
         Description=Docker Socket for the API
@@ -46,19 +53,17 @@ coreos:
         ListenStream=2375
         BindIPv6Only=both
         Service=docker.service
+        Before=docker.service
 
         [Install]
         WantedBy=sockets.target
-    - name: enable-docker-tcp.service
-      command: start
-      content: |
-        [Unit]
-        Description=Enable the Docker Socket for the API
-
-        [Service]
-        Type=oneshot
-        ExecStart=/usr/bin/systemctl enable docker-tcp.socket
 write_files:
+  - path: /etc/systemd/system/docker.service.d/increase-ulimit.conf
+    owner: core:core
+    permissions: 0644
+    content: |
+      [Service]
+      LimitMEMLOCK=infinity
   - path: /etc/environment
     owner: root
     permissions: '0644'
