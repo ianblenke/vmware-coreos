@@ -1,0 +1,91 @@
+#cloud-config
+---
+manage_etc_hosts: localhost
+coreos:
+  update:
+    group: alpha
+    reboot-strategy: off
+  etcd:
+    addr: 127.0.0.1:4001
+  fleet:
+    etcd_servers: "http://127.0.0.1:4001"
+  units:
+    - name: etcd.service
+      command: start
+    - name: fleet.socket
+      command: start
+      content: |
+        [Socket]
+        ListenStream=/var/run/fleet.sock
+    - name: fleet.service
+      command: start
+    - name: etcd-waiter.service
+      command: start
+      content: |
+        [Unit]
+        Description=etcd waiter
+        Wants=network-online.target
+        Wants=etcd.service
+        After=etcd.service
+        After=network-online.target
+        Before=flannel.service
+        Before=setup-network-environment.service
+        [Service]
+        ExecStartPre=/usr/bin/chmod +x /opt/bin/waiter.sh
+        ExecStart=/usr/bin/bash /opt/bin/waiter.sh
+        RemainAfterExit=true
+        Type=oneshot
+    - name: docker-tcp.socket
+      command: start
+      enable: yes
+      content: |
+        [Unit]
+        Description=Docker Socket for the API
+
+        [Socket]
+        ListenStream=2375
+        BindIPv6Only=both
+        Service=docker.service
+
+        [Install]
+        WantedBy=sockets.target
+    - name: enable-docker-tcp.service
+      command: start
+      content: |
+        [Unit]
+        Description=Enable the Docker Socket for the API
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/systemctl enable docker-tcp.socket
+write_files:
+  - path: /etc/environment
+    owner: root
+    permissions: '0644'
+    content: |
+      COREOS_PUBLIC_IPV4=$public_ipv4
+      COREOS_PRIVATE_IPV4=$private_ipv4
+  - path: /opt/bin/waiter.sh
+    owner: root
+    content: |
+      #! /usr/bin/bash
+      until curl http://127.0.0.1:4001/v2/machines; do sleep 2; done
+  - path: /etc/profile.d/nse-function.sh
+    permissions: '0755'
+    content: |
+      function nse() {
+        docker exec -it $1 bash
+      }
+  - path: /home/core/.toolboxrc
+    owner: core
+    content: |
+      TOOLBOX_DOCKER_IMAGE=ubuntu-debootstrap
+      TOOLBOX_DOCKER_TAG=14.04
+      TOOLBOX_USER=root
+hostname: vmwcoreos
+users:
+  - name: iblenke
+    coreos-ssh-import-github: ianblenke
+    groups:
+      - sudo
+      - docker
