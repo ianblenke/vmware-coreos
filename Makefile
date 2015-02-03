@@ -62,5 +62,5 @@ ps:
 
 myrawdns:
 	docker build -t myrawdns rawdns/
-	docker run --rm --name myrawdns -p 172.17.42.1:2:53/tcp -p 172.17.42.1:53:53/udp -v /var/run/docker.sock:/var/run/docker.sock myrawdns rawdns /etc/rawdns.json
+	docker run --rm --name myrawdns -p 172.17.42.1:53:53/tcp -p 172.17.42.1:53:53/udp -v /var/run/docker.sock:/var/run/docker.sock myrawdns rawdns /etc/rawdns.json
 
