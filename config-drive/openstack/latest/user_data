@@ -111,6 +111,19 @@ coreos:
         ExecStart=/tmp/avahi-create-fleet-units.sh
         RemainAfterExit=no
         Type=oneshot
+    - name: kvm-create-fleet-units.service
+      command: start
+      content: |
+        [Unit]
+        After=docker.service
+        ConditionFileIsExecutable=/tmp/kvm-create-fleet-units.sh
+        ConditionFileNotEmpty=/tmp/kvm@.service
+
+        [Service]
+        EnvironmentFile=/etc/environment
+        ExecStart=/tmp/kvm-create-fleet-units.sh
+        RemainAfterExit=no
+        Type=oneshot
 write_files:
   - path: /etc/systemd/system/docker.service.d/increase-ulimit.conf
     owner: core:core
@@ -151,6 +164,16 @@ write_files:
       ( echo -n MachineID=; cat /etc/machine-id ) >> /tmp/avahi@$(hostname).service
       /usr/bin/docker pull ianblenke/avahi:latest
       /usr/bin/fleetctl start /tmp/avahi@$(hostname).service
+  - path: /tmp/kvm-create-fleet-units.sh
+    permissions: '0755'
+    owner: root
+    content: |
+      #!/bin/bash
+      set -ex
+      cp -f /tmp/kvm@.service /tmp/kvm@$(hostname).service
+      ( echo -n MachineID=; cat /etc/machine-id ) >> /tmp/kvm@$(hostname).service
+      /usr/bin/docker pull ianblenke/kvm:latest
+      /usr/bin/fleetctl start /tmp/kvm@$(hostname).service
   - path: /etc/dbus-1/system.d/avahi.conf
     permissions: '0644'
     owner: root
@@ -163,6 +186,28 @@ write_files:
               <allow own="org.freedesktop.Avahi"/>
           </policy>
       </busconfig>
+  - path: /tmp/kvm@.service
+    permissions: '0644'
+    owner: root
+    content: |
+      [Unit]
+      Description=QEMU KVM
+      After=docker.service
+
+      [Service]
+      EnvironmentFile=/etc/environment
+      Environment=BRIDGE_IF=docker0
+      Environment=INSTANCE=%i
+      Environment=HOSTNAME=%H
+      ExecStartPre=/usr/bin/docker pull ianblenke/kvm
+      ExecStartPre=/usr/bin/docker run --rm --name %p --net=host --privileged -v /opt/bin:/install ianblenke/kvm
+      ExecStart=/run.sh
+      Restart=always
+      RestartSec=10s
+      Type=notify
+      NotifyAccess=all
+      TimeoutStartSec=120
+      TimeoutStopSec=15
   - path: /tmp/avahi@.service
     permissions: '0644'
     owner: root

@@ -7,7 +7,7 @@ DISKSIZE:=40G
 PLATFORM:=fusion
 
 usage:
-	@echo 'make {list:start|stop|reboot|snapshot|revert|clean|...}'
+	@echo 'make {list|start|stop|reboot|snapshot|revert|clean|upgradevm|...}'
 
 $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	perl -pi -e 's/^memsize.*$$/memsize = "$(MEMSIZE)"/' $@
@@ -22,6 +22,23 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	if ! grep vmx.allowNested $@ ; then \
 	  echo 'vmx.allowNested = "TRUE"' >> $@ ; \
 	fi > /dev/null 2>&1
+	if ! grep vhv.enable $@ ; then \
+	  echo 'vhv.enable = "TRUE"' >> $@ ; \
+	fi > /dev/null 2>&1
+	# Other things to try
+	#vhv.allow="TRUE"
+	#vhv.enable="TRUE"
+	#monitor.virtual_mmu="hardware"
+	#monitor.virtual_exec="hardware"
+	#monitor.virtual_mmu="software"
+	#monitor.virtual_exec="software"
+	#cpuid.1.ecx="----:----:----:----:----:----:--h-:----"
+	#hypervisor.cpuid.v0=FALSE
+	#signal.suspendOnHUP="TRUE"
+	#signal.powerOffOnTERM="TRUE"
+	#bios.bootDelay="3000"
+	#debugStub.listen.guest32=1
+	## gdb target remote localhost:8832
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig memsize "$(MEMSIZE)" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.present "TRUE"  2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.filename "configdrive.iso" 2>&1 >/dev/null || true
@@ -48,7 +65,10 @@ $(COREOS)/configdrive.iso: config-drive/openstack/latest/user_data
 	which mkisofs || brew install dvdrtool
 	mkisofs -R -V config-2 -o $(COREOS)/configdrive.iso config-drive
 
-list stop upgrade register unregister start: $(COREOS)/$(COREOS).vmx
+upgradevm: $(COREOS)/$(COREOS).vmx
+	$(VMRUN) -T $(PLATFORM) $@ $< || true
+
+list stop register unregister start: upgradevm
 	$(VMRUN) -T $(PLATFORM) $@ $(COREOS)/$(COREOS).vmx
 
 reboot: $(COREOS)/$(COREOS).vmx
@@ -76,3 +96,5 @@ myrawdns:
 	docker build -t myrawdns rawdns/
 	docker run --rm --name myrawdns -p 172.17.42.1:53:53/tcp -p 172.17.42.1:53:53/udp -v /var/run/docker.sock:/var/run/docker.sock myrawdns rawdns /etc/rawdns.json
 
+virtio-win-0.1-100.iso:
+	wget http://alt.fedoraproject.org/pub/alt/virtio-win/latest/images/bin/virtio-win-0.1-100.iso
