@@ -94,7 +94,8 @@ coreos:
         Restart=always
         TimeoutStartSec=1200s
         ExecStartPre=-/usr/bin/docker rm vmware-tools
-        ExecStart=/usr/bin/docker run --net=host --privileged --name vmware-tools sergeyzh/vmware-tools
+        ExecStartPre=/usr/bin/docker pull ianblenke/vmware-tools
+        ExecStart=/usr/bin/docker run --net=host --privileged --name vmware-tools ianblenke/vmware-tools
         ExecStop=-/usr/bin/docker stop vmware-tools
         ExecStopPost=-/usr/bin/docker rm vmware-tools
     - name: avahi-create-fleet-units.service
