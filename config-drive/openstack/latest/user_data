@@ -1,6 +1,6 @@
 #cloud-config
 ---
-hostname: vmwcoreos
+hostname: icbimac-iblenke-vmware-coreos
 manage_etc_hosts: localhost
 users:
   - name: iblenke
@@ -64,6 +64,19 @@ coreos:
 
         [Install]
         WantedBy=sockets.target
+    - name: vmware-tools.service
+      command: start
+      content: |
+        [Unit]
+        Description=VMWare Tools
+        After=systemd-networkd.service
+        [Service]
+        Restart=always
+        TimeoutStartSec=1200s
+        ExecStartPre=-/usr/bin/docker rm vmware-tools
+        ExecStart=/usr/bin/docker run --net=host --privileged --name vmware-tools sergeyzh/vmware-tools
+        ExecStop=-/usr/bin/docker stop vmware-tools
+        ExecStopPost=-/usr/bin/docker rm vmware-tools
     - name: avahi-create-fleet-units.service
       command: start
       content: |

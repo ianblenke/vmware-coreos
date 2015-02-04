@@ -1,13 +1,16 @@
 VMRUN:="/Applications/VMware Fusion.app/Contents/Library/vmrun"
 VDISKMANAGER:="/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager"
 COREOS:=coreos_production_vmware_insecure
+NAME:=$(shell hostname -s)-$(shell whoami)-vmware-coreos
+MEMSIZE:=4096
+DISKSIZE:=40G
 PLATFORM:=fusion
 
 usage:
 	@echo 'make {list:start|stop|reboot|snapshot|revert|clean}'
 
 $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
-	perl -pi -e 's/^memsize.*$$/memsize = "4096"/' $@
+	perl -pi -e 's/^memsize.*$$/memsize = "$(MEMSIZE)"/' $@
 	if ! grep ide1:0 $@ ; then \
 	  echo 'ide1:0.present = "TRUE"' >> $@ ; \
 	  echo 'ide1:0.deviceType = "cdrom-image"' >> $@ ; \
@@ -19,7 +22,7 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	if ! grep vmx.allowNested $@ ; then \
 	  echo 'vmx.allowNested = "TRUE"' >> $@ ; \
 	fi > /dev/null 2>&1
-	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig memsize "4096" 2>&1 >/dev/null || true
+	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig memsize "$(MEMSIZE)" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.present "TRUE"  2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.filename "configdrive.iso" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.deviceType "cdrom-image" 2>&1 >/dev/null || true
@@ -27,7 +30,7 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig vmx.allowNested "TRUE" 2>&1 >/dev/null || true
 
 prepare:
-	$(VDISKMANAGER) -x 10G $(COREOS)/$(COREOS)_image.vmdk
+	$(VDISKMANAGER) -x $(DISKSIZE) $(COREOS)/$(COREOS)_image.vmdk
 	touch $@
 
 $(COREOS): $(COREOS).zip
@@ -41,6 +44,7 @@ config-drive/openstack/latest/user_data:
 	touch $@
 
 $(COREOS)/configdrive.iso: config-drive/openstack/latest/user_data
+	perl -pi -e 's/^hostname:.*$$/hostname: $(NAME)/' config-drive/openstack/latest/user_data
 	which mkisofs || brew install dvdrtool
 	mkisofs -R -V config-2 -o $(COREOS)/configdrive.iso config-drive
 
