@@ -7,7 +7,7 @@ DISKSIZE:=40G
 PLATFORM:=fusion
 
 usage:
-	@echo 'make {list:start|stop|reboot|snapshot|revert|clean}'
+	@echo 'make {list:start|stop|reboot|snapshot|revert|clean|...}'
 
 $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	perl -pi -e 's/^memsize.*$$/memsize = "$(MEMSIZE)"/' $@
