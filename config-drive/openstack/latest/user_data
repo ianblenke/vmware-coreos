@@ -1,6 +1,13 @@
 #cloud-config
 ---
+hostname: vmwcoreos
 manage_etc_hosts: localhost
+users:
+  - name: iblenke
+    coreos-ssh-import-github: ianblenke
+    groups:
+      - sudo
+      - docker
 coreos:
   update:
     group: alpha
@@ -57,6 +64,19 @@ coreos:
 
         [Install]
         WantedBy=sockets.target
+    - name: avahi-create-fleet-units.service
+      command: start
+      content: |
+        [Unit]
+        After=docker.service
+        ConditionFileIsExecutable=/tmp/avahi-create-fleet-units.sh
+        ConditionFileNotEmpty=/tmp/avahi@.service
+
+        [Service]
+        EnvironmentFile=/etc/environment
+        ExecStart=/tmp/avahi-create-fleet-units.sh
+        RemainAfterExit=no
+        Type=oneshot
 write_files:
   - path: /etc/systemd/system/docker.service.d/increase-ulimit.conf
     owner: core:core
@@ -87,10 +107,58 @@ write_files:
       TOOLBOX_DOCKER_IMAGE=ubuntu-debootstrap
       TOOLBOX_DOCKER_TAG=14.04
       TOOLBOX_USER=root
-hostname: vmwcoreos
-users:
-  - name: iblenke
-    coreos-ssh-import-github: ianblenke
-    groups:
-      - sudo
-      - docker
+  - path: /tmp/avahi-create-fleet-units.sh
+    permissions: '0755'
+    owner: root
+    content: |
+      #!/bin/bash
+      set -ex
+      cp -f /tmp/avahi@.service /tmp/avahi@$(hostname).service
+      ( echo -n MachineID=; cat /etc/machine-id ) >> /tmp/avahi@$(hostname).service
+      /usr/bin/docker pull ianblenke/avahi:latest
+      /usr/bin/fleetctl start /tmp/avahi@$(hostname).service
+  - path: /etc/dbus-1/system.d/avahi.conf
+    permissions: '0644'
+    owner: root
+    content: |
+      <!DOCTYPE busconfig PUBLIC
+      "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+      "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+      <busconfig>
+          <policy user="root">
+              <allow own="org.freedesktop.Avahi"/>
+          </policy>
+      </busconfig>
+  - path: /tmp/avahi@.service
+    permissions: '0644'
+    owner: root
+    content: |
+      [Unit]
+      Description=Avahi mdns/zeroconf daemon
+
+      Requires=docker.service
+      After=docker.service
+
+      [Service]
+      TimeoutStartSec=10m
+      TimeoutStopSec=90s
+
+      Restart=always
+      RestartSec=10s
+
+      # Get CoreOS environmental variables
+      EnvironmentFile=/etc/environment
+
+      ExecStartPre=-/usr/bin/docker kill %p
+      ExecStartPre=-/usr/bin/docker rm -f %p
+      ExecStartPre=/usr/bin/docker pull ianblenke/avahi:latest
+      ExecStart=/usr/bin/docker run \
+                                --name %p \
+                                --net=host \
+                                -v /var/run/dbus:/var/run/dbus \
+                                ianblenke/avahi:latest
+
+      ExecStop=/usr/bin/docker stop -t 10 %p
+      ExecStop=/usr/bin/docker rm %p
+
+      [X-Fleet]
