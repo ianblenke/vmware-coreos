@@ -13,10 +13,18 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	  echo 'ide1:0.deviceType = "cdrom-image"' >> $@ ; \
 	  echo 'ide1:0.filename = "configdrive.iso"' >> $@ ; \
 	fi > /dev/null 2>&1
+	if ! grep vmci0.present $@ ; then \
+	  echo 'vmci0.present = "TRUE"' >> $@ ; \
+	fi > /dev/null 2>&1
+	if ! grep vmx.allowNested $@ ; then \
+	  echo 'vmx.allowNested = "TRUE"' >> $@ ; \
+	fi > /dev/null 2>&1
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig memsize "4096" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.present "TRUE"  2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.filename "configdrive.iso" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.deviceType "cdrom-image" 2>&1 >/dev/null || true
+	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig vmci0.present "TRUE" 2>&1 >/dev/null || true
+	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig vmx.allowNested "TRUE" 2>&1 >/dev/null || true
 
 prepare:
 	$(VDISKMANAGER) -x 10G $(COREOS)/$(COREOS)_image.vmdk
