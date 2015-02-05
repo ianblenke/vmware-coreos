@@ -10,6 +10,7 @@ usage:
 	@echo 'make {list|start|stop|reboot|snapshot|revert|clean|upgradevm|...}'
 
 $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
+	# Configure the .vmx file
 	perl -pi -e 's/^memsize.*$$/memsize = "$(MEMSIZE)"/' $@
 	if ! grep ide1:0 $@ ; then \
 	  echo 'ide1:0.present = "TRUE"' >> $@ ; \
@@ -26,8 +27,6 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	  echo 'vhv.enable = "TRUE"' >> $@ ; \
 	fi > /dev/null 2>&1
 	# Other things to try
-	#vhv.allow="TRUE"
-	#vhv.enable="TRUE"
 	#monitor.virtual_mmu="hardware"
 	#monitor.virtual_exec="hardware"
 	#monitor.virtual_mmu="software"
@@ -39,6 +38,7 @@ $(COREOS)/$(COREOS).vmx: $(COREOS) Makefile $(COREOS)/configdrive.iso prepare
 	#bios.bootDelay="3000"
 	#debugStub.listen.guest32=1
 	## gdb target remote localhost:8832
+	# These are the same as the above, only made to a live running guest
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig memsize "$(MEMSIZE)" 2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.present "TRUE"  2>&1 >/dev/null || true
 	$(VMRUN) -T $(PLATFORM) writeVariable $@ runtimeConfig ide1:0.filename "configdrive.iso" 2>&1 >/dev/null || true
@@ -62,7 +62,7 @@ config-drive/openstack/latest/user_data:
 
 $(COREOS)/configdrive.iso: config-drive/openstack/latest/user_data
 	perl -pi -e 's/^hostname:.*$$/hostname: $(NAME)/' config-drive/openstack/latest/user_data
-	which mkisofs || brew install dvdrtool
+	@which mkisofs >/dev/null || make mkisofs
 	mkisofs -R -V config-2 -o $(COREOS)/configdrive.iso config-drive
 
 upgradevm: $(COREOS)/$(COREOS).vmx
@@ -90,11 +90,27 @@ distclean: clean
 	rm -fr $(COREOS).zip
 
 ps:
-	which docker || brew install docker 
+	@which docker  >/dev/null || make docker
+	docker ps -a
 
 myrawdns:
+	@which docker >/dev/null || make docker
 	docker build -t myrawdns rawdns/
 	docker run --rm --name myrawdns -p 172.17.42.1:53:53/tcp -p 172.17.42.1:53:53/udp -v /var/run/docker.sock:/var/run/docker.sock myrawdns rawdns /etc/rawdns.json
 
 virtio-win-0.1-100.iso:
+	@which wget || make wget
 	wget http://alt.fedoraproject.org/pub/alt/virtio-win/latest/images/bin/virtio-win-0.1-100.iso
+
+brew:
+	@which brew >/dev/null || ruby -e "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
+wget: brew
+	@which wget || brew install wget
+
+mkisofs: brew
+	which mkisofs || brew install dvdrtool
+
+docker: brew
+	@which docker >/dev/null || brew install docker 
+
